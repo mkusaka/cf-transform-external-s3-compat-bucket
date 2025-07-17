@@ -51,7 +51,7 @@ app.get("/*", async (c) => {
     cacheEverything: true,
     cacheTtlByStatus: {
       "200-299": 86400,
-      "404": 300,
+      "404": -1,
       "500-599": -1,
     },
   };
