@@ -1,16 +1,19 @@
 {
-	"name": "cf-transform-external-s3-compat-bucket",
-	"type": "module",
-	"scripts": {
-		"dev": "wrangler dev",
-		"deploy": "wrangler deploy --minify",
-		"cf-typegen": "wrangler types --env-interface CloudflareBindings"
-	},
-	"dependencies": {
-		"aws4fetch": "^1.0.20",
-		"hono": "^4.8.5"
-	},
-	"devDependencies": {
-		"wrangler": "^4.25.0"
-	}
+  "name": "cf-transform-external-s3-compat-bucket",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "format": "prettier --write \"**/*.{js,ts,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,ts,json,md}\""
+  },
+  "dependencies": {
+    "aws4fetch": "^1.0.20",
+    "hono": "^4.8.5"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "wrangler": "^4.25.0"
+  }
 }
