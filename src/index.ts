@@ -56,8 +56,35 @@ app.get("/*", async (c) => {
     },
   };
 
+  // Log for debugging
+  console.log("Request URL:", c.req.url);
+  console.log("Accept header:", accept);
+  console.log("Detected format:", format || "original");
+  console.log("CF options:", JSON.stringify(cfOptions));
+
   // (5) Pass signed request through transformation pipeline and return
-  return fetch(signedReq, { cf: cfOptions });
+  const response = await fetch(signedReq, { cf: cfOptions });
+  
+  // Clone response to add debug headers
+  const newResponse = new Response(response.body, response);
+  
+  // Add debug headers
+  newResponse.headers.set("X-Requested-Format", format || "original");
+  newResponse.headers.set("X-Accept-Header", accept);
+  newResponse.headers.set("X-Original-Content-Type", response.headers.get("Content-Type") || "unknown");
+  newResponse.headers.set("X-CF-Ray", response.headers.get("CF-RAY") || "unknown");
+  
+  // Check if Image Resizing worked
+  const contentType = response.headers.get("Content-Type") || "";
+  if (format === "avif" && !contentType.includes("avif")) {
+    newResponse.headers.set("X-Image-Resizing-Status", "failed-avif");
+  } else if (format === "webp" && !contentType.includes("webp")) {
+    newResponse.headers.set("X-Image-Resizing-Status", "failed-webp");
+  } else if (format) {
+    newResponse.headers.set("X-Image-Resizing-Status", "success");
+  }
+  
+  return newResponse;
 });
 
 export default app;
