@@ -30,7 +30,10 @@ app.get("/*", async (c) => {
   const signedReq = await aws.sign(
     new Request(`https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`, {
       method: "GET",
-    })
+    }),
+    {
+      aws: { signQuery: false } // Use Authorization header instead of query parameters
+    }
   );
 
   // (3) Determine format from Accept header
@@ -43,14 +46,18 @@ app.get("/*", async (c) => {
   }
   // Use original format if not specified
 
-  // (4) Build cf options
+  // (4) Build cf options with origin-auth to forward Authorization headers
   const cfOptions: RequestInitCfProperties = {
-    image: format ? { format } : undefined,
+    image: {
+      format,
+      quality: 85,
+      "origin-auth": "share-publicly" // Forward Authorization headers to origin
+    },
     polish: "lossy",
-    cacheTtl: 86400,
+    cacheTtl: 30, // Reduced from 86400 (24h) to 30 seconds for testing
     cacheEverything: true,
     cacheTtlByStatus: {
-      "200-299": 86400,
+      "200-299": 30, // Reduced from 86400 (24h) to 30 seconds for testing
       "404": -1,
       "500-599": -1,
     },
