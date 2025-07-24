@@ -46,21 +46,19 @@ app.get("/*", async (c) => {
       }
     );
 
-    // Media Transform options
+    // Media Transform options - try simpler options first
     const mediaOptions = [
-      "mode=video",
-      "width=720",
-      "fit=contain",
-      "format=mp4"
+      "mode=video"
     ];
 
-    // Build Media Transform URL
+    // Build Media Transform URL - try without encoding first
     const transformUrl = 
       `https://${url.host}/cdn-cgi/media/${mediaOptions.join(",")}/` +
-      encodeURIComponent(signedReq.url);
+      signedReq.url;
 
     console.log("Media Transform URL:", transformUrl);
     console.log("Signed URL:", signedReq.url);
+    console.log("Media options:", mediaOptions.join(","));
 
     // Execute transformation with caching
     try {
