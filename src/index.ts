@@ -53,7 +53,6 @@ app.get("/*", async (c) => {
       quality: 85,
       "origin-auth": "share-publicly" // Forward Authorization headers to origin
     },
-    polish: "lossy",
     cacheTtl: 30, // Reduced from 86400 (24h) to 30 seconds for testing
     cacheEverything: true,
     cacheTtlByStatus: {
