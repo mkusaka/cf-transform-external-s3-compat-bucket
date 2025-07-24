@@ -64,10 +64,10 @@ app.get(/\.(mp4|webm|mov|avi|mkv)$/i, async (c) => {
   // Execute transformation with caching
   const response = await fetch(transformUrl, {
     cf: {
-      cacheTtl: 3600, // 1 hour for videos
+      cacheTtl: 20, // Reduced to 20 seconds for debugging
       cacheEverything: true,
       cacheTtlByStatus: {
-        "200-299": 3600,
+        "200-299": 20, // Reduced to 20 seconds for debugging
         "404": -1,
         "500-599": -1,
       },
