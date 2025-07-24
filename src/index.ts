@@ -51,23 +51,17 @@ app.get("/*", async (c) => {
       "mode=video"
     ];
 
-    // Build Media Transform URL - try without encoding first
-    const transformUrl = 
-      `https://${url.host}/cdn-cgi/media/${mediaOptions.join(",")}/` +
-      signedReq.url;
-
-    console.log("Media Transform URL:", transformUrl);
-    console.log("Signed URL:", signedReq.url);
-    console.log("Media options:", mediaOptions.join(","));
-
-    // Execute transformation with caching
+    // For now, just proxy the video directly without transformation
+    // TODO: Enable Media Transformations after adding storage.googleapis.com to allowed origins
+    console.log("Video request - direct proxy (Media Transformations requires allowed origin setup)");
+    
     try {
-      const response = await fetch(transformUrl, {
+      const response = await fetch(signedReq, {
         cf: {
-          cacheTtl: 20, // Reduced to 20 seconds for debugging
+          cacheTtl: 3600, // 1 hour for videos
           cacheEverything: true,
           cacheTtlByStatus: {
-            "200-299": 20, // Reduced to 20 seconds for debugging
+            "200-299": 3600,
             "404": -1,
             "500-599": -1,
           },
@@ -79,14 +73,12 @@ app.get("/*", async (c) => {
       newResponse.headers.set("X-Media-Transform", "video");
       newResponse.headers.set("X-Original-Key", key);
       newResponse.headers.set("X-Transform-Options", mediaOptions.join(","));
-      newResponse.headers.set("X-Transform-Status", response.status.toString());
-      newResponse.headers.set("X-Transform-URL", transformUrl.substring(0, 200)); // First 200 chars for debugging
-
-      // If the transform failed, add more debug info
+      newResponse.headers.set("X-Video-Proxy", "direct");
+      newResponse.headers.set("X-Video-Status", response.status.toString());
+      
+      // If the video fetch failed, add debug info
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Media Transform Error:", response.status, errorText);
-        newResponse.headers.set("X-Transform-Error", errorText.substring(0, 100));
+        console.error("Video fetch error:", response.status);
       }
 
       return newResponse;
