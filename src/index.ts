@@ -36,23 +36,12 @@ app.get("/*", async (c) => {
     }
   );
 
-  // (3) Determine format from Accept header
+  // (3) Polish-only mode - let Cloudflare decide format based on Accept header
   const accept = c.req.header("Accept") || "";
-  let format: "avif" | "webp" | undefined;
-  if (/\bimage\/avif\b/.test(accept)) {
-    format = "avif";
-  } else if (/\bimage\/webp\b/.test(accept)) {
-    format = "webp";
-  }
-  // Use original format if not specified
 
-  // (4) Build cf options with origin-auth to forward Authorization headers
+  // (4) Build cf options with polish-only (no explicit format)
   const cfOptions: RequestInitCfProperties = {
-    image: {
-      format,
-      quality: 85,
-      "origin-auth": "share-publicly" // Forward Authorization headers to origin
-    },
+    // Using polish without specifying format - should auto-convert to WebP when supported
     polish: "lossy",
     cacheTtl: 30, // Reduced from 86400 (24h) to 30 seconds for testing
     cacheEverything: true,
@@ -66,7 +55,7 @@ app.get("/*", async (c) => {
   // Log for debugging
   console.log("Request URL:", c.req.url);
   console.log("Accept header:", accept);
-  console.log("Detected format:", format || "original");
+  console.log("Polish mode: lossy (auto-format detection)");
   console.log("CF options:", JSON.stringify(cfOptions));
 
   // (5) Pass signed request through transformation pipeline and return
@@ -76,19 +65,19 @@ app.get("/*", async (c) => {
   const newResponse = new Response(response.body, response);
   
   // Add debug headers
-  newResponse.headers.set("X-Requested-Format", format || "original");
+  newResponse.headers.set("X-Polish-Mode", "lossy");
   newResponse.headers.set("X-Accept-Header", accept);
   newResponse.headers.set("X-Original-Content-Type", response.headers.get("Content-Type") || "unknown");
   newResponse.headers.set("X-CF-Ray", response.headers.get("CF-RAY") || "unknown");
   
-  // Check if Image Resizing worked
+  // Check if Polish auto-converted to WebP
   const contentType = response.headers.get("Content-Type") || "";
-  if (format === "avif" && !contentType.includes("avif")) {
-    newResponse.headers.set("X-Image-Resizing-Status", "failed-avif");
-  } else if (format === "webp" && !contentType.includes("webp")) {
-    newResponse.headers.set("X-Image-Resizing-Status", "failed-webp");
-  } else if (format) {
-    newResponse.headers.set("X-Image-Resizing-Status", "success");
+  if (accept.includes("webp") && contentType.includes("webp")) {
+    newResponse.headers.set("X-Polish-Auto-Convert", "webp-success");
+  } else if (accept.includes("webp") && !contentType.includes("webp")) {
+    newResponse.headers.set("X-Polish-Auto-Convert", "webp-not-converted");
+  } else {
+    newResponse.headers.set("X-Polish-Auto-Convert", "no-webp-in-accept");
   }
   
   return newResponse;
