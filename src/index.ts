@@ -60,27 +60,48 @@ app.get("/*", async (c) => {
       encodeURIComponent(signedReq.url);
 
     console.log("Media Transform URL:", transformUrl);
+    console.log("Signed URL:", signedReq.url);
 
     // Execute transformation with caching
-    const response = await fetch(transformUrl, {
-      cf: {
-        cacheTtl: 20, // Reduced to 20 seconds for debugging
-        cacheEverything: true,
-        cacheTtlByStatus: {
-          "200-299": 20, // Reduced to 20 seconds for debugging
-          "404": -1,
-          "500-599": -1,
-        },
+    try {
+      const response = await fetch(transformUrl, {
+        cf: {
+          cacheTtl: 20, // Reduced to 20 seconds for debugging
+          cacheEverything: true,
+          cacheTtlByStatus: {
+            "200-299": 20, // Reduced to 20 seconds for debugging
+            "404": -1,
+            "500-599": -1,
+          },
+        }
+      });
+
+      // Add debug headers
+      const newResponse = new Response(response.body, response);
+      newResponse.headers.set("X-Media-Transform", "video");
+      newResponse.headers.set("X-Original-Key", key);
+      newResponse.headers.set("X-Transform-Options", mediaOptions.join(","));
+      newResponse.headers.set("X-Transform-Status", response.status.toString());
+      newResponse.headers.set("X-Transform-URL", transformUrl.substring(0, 200)); // First 200 chars for debugging
+
+      // If the transform failed, add more debug info
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Media Transform Error:", response.status, errorText);
+        newResponse.headers.set("X-Transform-Error", errorText.substring(0, 100));
       }
-    });
 
-    // Add debug headers
-    const newResponse = new Response(response.body, response);
-    newResponse.headers.set("X-Media-Transform", "video");
-    newResponse.headers.set("X-Original-Key", key);
-    newResponse.headers.set("X-Transform-Options", mediaOptions.join(","));
-
-    return newResponse;
+      return newResponse;
+    } catch (error) {
+      console.error("Media Transform Exception:", error);
+      return new Response("Media transformation failed", { 
+        status: 500,
+        headers: {
+          "X-Error": error.message || "Unknown error",
+          "X-Original-Key": key
+        }
+      });
+    }
   }
 
   // (2) Generate signed request with aws4fetch
