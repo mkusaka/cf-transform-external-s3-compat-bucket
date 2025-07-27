@@ -42,7 +42,7 @@ app.get("/*", async (c) => {
   console.log("MIME type for", key, ":", mimeType);
 
   // Check if it's an MP4 file based on MIME type
-  const isMp4 = mimeType === "video/mp4" || mimeType === "application/mp4";
+  const isMp4 = mimeType === "application/mp4";
 
   if (isMp4) {
     console.log("MP4 detected via mime-types, using Media Transformations");
