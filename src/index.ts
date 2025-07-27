@@ -35,16 +35,25 @@ app.get("/*", async (c) => {
 
   const originUrl = `https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`;
   
-  // First, check if this might be a video based on extension (for optimization)
-  const hasVideoExtension = /\.(mp4|webm|mov|avi|mkv)$/i.test(key);
-  
-  // If it has a video extension, handle it separately from images
-  if (hasVideoExtension) {
-    // Check if it's an MP4 file based on extension
-    const isMp4 = key.toLowerCase().endsWith(".mp4");
+  // Make a HEAD request to check the actual MIME type
+  const headReq = await aws.sign(
+    new Request(originUrl, { method: "HEAD" }),
+    {
+      aws: { signQuery: true }
+    }
+  );
+
+  try {
+    const headResponse = await fetch(headReq);
+    const contentType = headResponse.headers.get("Content-Type") || "";
+    
+    console.log("Content-Type for", key, ":", contentType);
+    
+    // Check if it's an MP4 file based on MIME type
+    const isMp4 = contentType === "video/mp4" || contentType === "video/mpeg";
     
     if (isMp4) {
-      console.log("MP4 detected, using Media Transformations");
+      console.log("MP4 detected via MIME type, using Media Transformations");
       
       // Generate signed URL for the source video
       const signedUrlReq = await aws.sign(
@@ -77,10 +86,15 @@ app.get("/*", async (c) => {
       const newResponse = new Response(transformResponse.body, transformResponse);
       newResponse.headers.set("X-Media-Transform", "mp4-proxy");
       newResponse.headers.set("X-Original-Key", key);
+      newResponse.headers.set("X-Content-Type", contentType);
       
       return newResponse;
-    } else {
-      // Non-MP4 video file, direct proxy without transformations
+    }
+    
+    // Check if it's another video type that shouldn't go through image processing
+    const isVideo = contentType.startsWith("video/");
+    
+    if (isVideo) {
       console.log("Non-MP4 video file detected, direct proxy without transformations");
       
       const signedVideoReq = await aws.sign(
@@ -105,9 +119,13 @@ app.get("/*", async (c) => {
       const newResponse = new Response(videoResponse.body, videoResponse);
       newResponse.headers.set("X-Video-Direct-Proxy", "true");
       newResponse.headers.set("X-Original-Key", key);
+      newResponse.headers.set("X-Content-Type", contentType);
       
       return newResponse;
     }
+  } catch (error) {
+    console.error("Error checking content type:", error);
+    // Continue with normal processing if HEAD request fails
   }
 
   // (3) For non-video files, continue with image processing
