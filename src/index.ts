@@ -45,27 +45,23 @@ app.get("/*", async (c) => {
   const isMp4 = mimeType === "application/mp4";
 
   if (isMp4) {
-    console.log("MP4 detected via mime-types, using Media Transformations");
+    console.log("MP4 detected via mime-types");
 
-    // Generate signed URL for the source video
-    const signedUrlReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
-      aws: { signQuery: true }, // Use query parameters for Media Transformations
+    // Option 1: Direct fetch with caching (temporary until Cache Rule is set up)
+    // TODO: Switch back to Media Transformations after Cache Rule is configured
+    const signedReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
+      aws: { signQuery: false }, // Use Authorization header for better caching
     });
 
-    // Build Media Transformations URL
-    const url = new URL(c.req.url);
-    const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
+    console.log("Direct MP4 fetch with caching");
 
-    console.log("Media Transformations URL:", transformUrl);
-
-    // Proxy through Media Transformations
-    const transformResponse = await fetch(transformUrl, {
-      headers: c.req.raw.headers,
+    const transformResponse = await fetch(signedReq, {
       cf: {
         cacheTtl: 30, // 30 seconds for testing
         cacheEverything: true,
         cacheTtlByStatus: {
           "200-299": 30, // 30 seconds for testing
+          "206": 30, // Cache partial content for video streaming
           "400-499": -1, // Don't cache client errors
           "500-599": -1,
         },
