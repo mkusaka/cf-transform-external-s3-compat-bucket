@@ -47,23 +47,18 @@ app.get("/*", async (c) => {
   if (isMp4) {
     console.log("MP4 detected via mime-types, using Media Transformations");
     
-    // Generate signed URL for the source video
-    const signedUrlReq = await aws.sign(
+    // Test: Direct fetch with Authorization header instead of Media Transformations
+    const signedReq = await aws.sign(
       new Request(originUrl, { method: "GET" }),
       {
-        aws: { signQuery: true }
+        aws: { signQuery: false } // Use Authorization header
       }
     );
     
-    // Build Media Transformations URL
-    const url = new URL(c.req.url);
-    const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
+    console.log("Direct MP4 fetch with Authorization header");
     
-    console.log("Media Transformations URL:", transformUrl);
-    
-    // Proxy through Media Transformations
-    const transformResponse = await fetch(transformUrl, {
-      headers: c.req.raw.headers,
+    // Direct fetch from origin with cache settings
+    const transformResponse = await fetch(signedReq, {
       cf: {
         cacheTtl: 30, // 30 seconds for testing
         cacheEverything: true,
