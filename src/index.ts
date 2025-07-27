@@ -86,7 +86,7 @@ app.get("/*", async (c) => {
     console.log("Non-MP4 video file detected, direct proxy without transformations");
 
     const signedVideoReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
-      aws: { signQuery: true },
+      aws: { signQuery: false }, // Use Authorization header for direct proxy
     });
 
     const videoResponse = await fetch(signedVideoReq, {
