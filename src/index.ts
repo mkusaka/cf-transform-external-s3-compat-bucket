@@ -40,30 +40,8 @@ app.get("/*", async (c) => {
   
   // If it has a video extension, handle it separately from images
   if (hasVideoExtension) {
-    let contentType = "";
-    let headRequestFailed = false;
-    
-    // Try to get the content type via HEAD request
-    try {
-      const headReq = await aws.sign(
-        new Request(originUrl, { method: "HEAD" }),
-        {
-          aws: { signQuery: true }
-        }
-      );
-      const headResponse = await fetch(headReq);
-      contentType = headResponse.headers.get("Content-Type") || "";
-      console.log("Content-Type for", key, ":", contentType);
-    } catch (error) {
-      console.error("Error checking content type:", error);
-      headRequestFailed = true;
-    }
-    
-    // Check if it's an MP4 file based on MIME type or extension
-    const isMp4 = contentType === "video/mp4" || 
-                  contentType === "video/mpeg" || 
-                  (contentType === "application/octet-stream" && key.toLowerCase().endsWith(".mp4")) ||
-                  (headRequestFailed && key.toLowerCase().endsWith(".mp4"));
+    // Check if it's an MP4 file based on extension
+    const isMp4 = key.toLowerCase().endsWith(".mp4");
     
     if (isMp4) {
       console.log("MP4 detected, using Media Transformations");
@@ -99,10 +77,6 @@ app.get("/*", async (c) => {
       const newResponse = new Response(transformResponse.body, transformResponse);
       newResponse.headers.set("X-Media-Transform", "mp4-proxy");
       newResponse.headers.set("X-Original-Key", key);
-      newResponse.headers.set("X-Content-Type", contentType);
-      if (headRequestFailed) {
-        newResponse.headers.set("X-Head-Request-Failed", "true");
-      }
       
       return newResponse;
     } else {
@@ -131,10 +105,6 @@ app.get("/*", async (c) => {
       const newResponse = new Response(videoResponse.body, videoResponse);
       newResponse.headers.set("X-Video-Direct-Proxy", "true");
       newResponse.headers.set("X-Original-Key", key);
-      newResponse.headers.set("X-Content-Type", contentType);
-      if (headRequestFailed) {
-        newResponse.headers.set("X-Head-Request-Failed", "true");
-      }
       
       return newResponse;
     }
