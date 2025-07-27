@@ -65,10 +65,10 @@ app.get("/*", async (c) => {
     const transformResponse = await fetch(transformUrl, {
       headers: c.req.raw.headers,
       cf: {
-        cacheTtl: 3600,
+        cacheTtl: 30, // 30 seconds for testing
         cacheEverything: true,
         cacheTtlByStatus: {
-          "200-299": 3600,
+          "200-299": 30, // 30 seconds for testing
           "404": -1,
           "500-599": -1,
         },
@@ -98,10 +98,10 @@ app.get("/*", async (c) => {
     
     const videoResponse = await fetch(signedVideoReq, {
       cf: {
-        cacheTtl: 3600,
+        cacheTtl: 30, // 30 seconds for testing
         cacheEverything: true,
         cacheTtlByStatus: {
-          "200-299": 3600,
+          "200-299": 30, // 30 seconds for testing
           "404": -1,
           "500-599": -1,
         },
