@@ -53,7 +53,8 @@ app.get("/*", async (c) => {
     });
 
     // Build Media Transformations URL
-    const transformUrl = `/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
+    const url = new URL(c.req.url);
+    const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
 
     console.log("Media Transformations URL:", transformUrl);
 
