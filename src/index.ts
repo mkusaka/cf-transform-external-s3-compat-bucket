@@ -41,46 +41,11 @@ app.get("/*", async (c) => {
 
   console.log("MIME type for", key, ":", mimeType);
 
-  // Check if it's an MP4 file based on MIME type
-  const isMp4 = mimeType === "application/mp4";
-
-  if (isMp4) {
-    console.log("MP4 detected via mime-types");
-
-    // Option 1: Direct fetch with caching (temporary until Cache Rule is set up)
-    // TODO: Switch back to Media Transformations after Cache Rule is configured
-    const signedReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
-      aws: { signQuery: false }, // Use Authorization header for better caching
-    });
-
-    console.log("Direct MP4 fetch with caching");
-
-    const transformResponse = await fetch(signedReq, {
-      cf: {
-        cacheTtl: 30, // 30 seconds for testing
-        cacheEverything: true,
-        cacheTtlByStatus: {
-          "200-299": 30, // 30 seconds for testing
-          "206": 30, // Cache partial content for video streaming
-          "400-499": -1, // Don't cache client errors
-          "500-599": -1,
-        },
-      },
-    });
-
-    const newResponse = new Response(transformResponse.body, transformResponse);
-    newResponse.headers.set("X-Media-Transform", "mp4-proxy");
-    newResponse.headers.set("X-Original-Key", key);
-    newResponse.headers.set("X-Mime-Type", mimeType);
-
-    return newResponse;
-  }
-
-  // Check if it's another video type that shouldn't go through image processing
-  const isVideo = mimeType.startsWith("video/");
+  // Check if it's any video file (including MP4) that shouldn't go through image processing
+  const isVideo = mimeType.startsWith("video/") || mimeType === "application/mp4";
 
   if (isVideo) {
-    console.log("Non-MP4 video file detected, direct proxy without transformations");
+    console.log("Video file detected, direct proxy without transformations");
 
     const signedVideoReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
       aws: { signQuery: false }, // Use Authorization header for direct proxy
