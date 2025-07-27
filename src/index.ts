@@ -96,9 +96,69 @@ app.get("/*", async (c) => {
         
         return newResponse;
       }
+      
+      // If it has video extension but not MP4, directly proxy without image transformations
+      if (hasVideoExtension) {
+        console.log("Non-MP4 video file detected, direct proxy without transformations");
+        
+        const signedVideoReq = await aws.sign(
+          new Request(originUrl, { method: "GET" }),
+          {
+            aws: { signQuery: true }
+          }
+        );
+        
+        const videoResponse = await fetch(signedVideoReq, {
+          cf: {
+            cacheTtl: 3600,
+            cacheEverything: true,
+            cacheTtlByStatus: {
+              "200-299": 3600,
+              "404": -1,
+              "500-599": -1,
+            },
+          }
+        });
+        
+        const newResponse = new Response(videoResponse.body, videoResponse);
+        newResponse.headers.set("X-Video-Direct-Proxy", "true");
+        newResponse.headers.set("X-Original-Key", key);
+        newResponse.headers.set("X-Content-Type", contentType);
+        
+        return newResponse;
+      }
     } catch (error) {
       console.error("Error checking content type:", error);
-      // Fall through to normal processing if HEAD request fails
+      // For video files, still proxy directly without image transformations
+      if (hasVideoExtension) {
+        console.log("HEAD request failed for video, direct proxy without transformations");
+        
+        const signedVideoReq = await aws.sign(
+          new Request(originUrl, { method: "GET" }),
+          {
+            aws: { signQuery: true }
+          }
+        );
+        
+        const videoResponse = await fetch(signedVideoReq, {
+          cf: {
+            cacheTtl: 3600,
+            cacheEverything: true,
+            cacheTtlByStatus: {
+              "200-299": 3600,
+              "404": -1,
+              "500-599": -1,
+            },
+          }
+        });
+        
+        const newResponse = new Response(videoResponse.body, videoResponse);
+        newResponse.headers.set("X-Video-Direct-Proxy", "true");
+        newResponse.headers.set("X-Original-Key", key);
+        newResponse.headers.set("X-Head-Request-Failed", "true");
+        
+        return newResponse;
+      }
     }
   }
 
