@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { AwsClient } from "aws4fetch";
+import { lookup } from "mime-types";
 
 type Bindings = {
   GCS_HMAC_ACCESS_KEY_ID: string;
@@ -35,97 +36,84 @@ app.get("/*", async (c) => {
 
   const originUrl = `https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`;
   
-  // Make a HEAD request to check the actual MIME type
-  const headReq = await aws.sign(
-    new Request(originUrl, { method: "HEAD" }),
-    {
-      aws: { signQuery: true }
-    }
-  );
-
-  try {
-    const headResponse = await fetch(headReq);
-    const contentType = headResponse.headers.get("Content-Type") || "";
+  // Use mime-types package to determine content type from file extension
+  const mimeType = lookup(key) || "";
+  
+  console.log("MIME type for", key, ":", mimeType);
+  
+  // Check if it's an MP4 file based on MIME type
+  const isMp4 = mimeType === "video/mp4";
+  
+  if (isMp4) {
+    console.log("MP4 detected via mime-types, using Media Transformations");
     
-    console.log("Content-Type for", key, ":", contentType);
+    // Generate signed URL for the source video
+    const signedUrlReq = await aws.sign(
+      new Request(originUrl, { method: "GET" }),
+      {
+        aws: { signQuery: true }
+      }
+    );
     
-    // Check if it's an MP4 file based on MIME type
-    const isMp4 = contentType === "video/mp4" || contentType === "video/mpeg";
+    // Build Media Transformations URL
+    const url = new URL(c.req.url);
+    const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
     
-    if (isMp4) {
-      console.log("MP4 detected via MIME type, using Media Transformations");
-      
-      // Generate signed URL for the source video
-      const signedUrlReq = await aws.sign(
-        new Request(originUrl, { method: "GET" }),
-        {
-          aws: { signQuery: true }
-        }
-      );
-      
-      // Build Media Transformations URL
-      const url = new URL(c.req.url);
-      const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
-      
-      console.log("Media Transformations URL:", transformUrl);
-      
-      // Proxy through Media Transformations
-      const transformResponse = await fetch(transformUrl, {
-        headers: c.req.raw.headers,
-        cf: {
-          cacheTtl: 3600,
-          cacheEverything: true,
-          cacheTtlByStatus: {
-            "200-299": 3600,
-            "404": -1,
-            "500-599": -1,
-          },
-        }
-      });
-      
-      const newResponse = new Response(transformResponse.body, transformResponse);
-      newResponse.headers.set("X-Media-Transform", "mp4-proxy");
-      newResponse.headers.set("X-Original-Key", key);
-      newResponse.headers.set("X-Content-Type", contentType);
-      
-      return newResponse;
-    }
+    console.log("Media Transformations URL:", transformUrl);
     
-    // Check if it's another video type that shouldn't go through image processing
-    const isVideo = contentType.startsWith("video/");
+    // Proxy through Media Transformations
+    const transformResponse = await fetch(transformUrl, {
+      headers: c.req.raw.headers,
+      cf: {
+        cacheTtl: 3600,
+        cacheEverything: true,
+        cacheTtlByStatus: {
+          "200-299": 3600,
+          "404": -1,
+          "500-599": -1,
+        },
+      }
+    });
     
-    if (isVideo) {
-      console.log("Non-MP4 video file detected, direct proxy without transformations");
-      
-      const signedVideoReq = await aws.sign(
-        new Request(originUrl, { method: "GET" }),
-        {
-          aws: { signQuery: true }
-        }
-      );
-      
-      const videoResponse = await fetch(signedVideoReq, {
-        cf: {
-          cacheTtl: 3600,
-          cacheEverything: true,
-          cacheTtlByStatus: {
-            "200-299": 3600,
-            "404": -1,
-            "500-599": -1,
-          },
-        }
-      });
-      
-      const newResponse = new Response(videoResponse.body, videoResponse);
-      newResponse.headers.set("X-Video-Direct-Proxy", "true");
-      newResponse.headers.set("X-Original-Key", key);
-      newResponse.headers.set("X-Content-Type", contentType);
-      
-      return newResponse;
-    }
-  } catch (error) {
-    console.error("Error checking content type:", error);
-    // Continue with normal processing if HEAD request fails
+    const newResponse = new Response(transformResponse.body, transformResponse);
+    newResponse.headers.set("X-Media-Transform", "mp4-proxy");
+    newResponse.headers.set("X-Original-Key", key);
+    newResponse.headers.set("X-Mime-Type", mimeType);
+    
+    return newResponse;
+  }
+  
+  // Check if it's another video type that shouldn't go through image processing
+  const isVideo = mimeType.startsWith("video/");
+  
+  if (isVideo) {
+    console.log("Non-MP4 video file detected, direct proxy without transformations");
+    
+    const signedVideoReq = await aws.sign(
+      new Request(originUrl, { method: "GET" }),
+      {
+        aws: { signQuery: true }
+      }
+    );
+    
+    const videoResponse = await fetch(signedVideoReq, {
+      cf: {
+        cacheTtl: 3600,
+        cacheEverything: true,
+        cacheTtlByStatus: {
+          "200-299": 3600,
+          "404": -1,
+          "500-599": -1,
+        },
+      }
+    });
+    
+    const newResponse = new Response(videoResponse.body, videoResponse);
+    newResponse.headers.set("X-Video-Direct-Proxy", "true");
+    newResponse.headers.set("X-Original-Key", key);
+    newResponse.headers.set("X-Mime-Type", mimeType);
+    
+    return newResponse;
   }
 
   // (3) For non-video files, continue with image processing
