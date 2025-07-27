@@ -69,7 +69,7 @@ app.get("/*", async (c) => {
         cacheEverything: true,
         cacheTtlByStatus: {
           "200-299": 30, // 30 seconds for testing
-          "404": -1,
+          "400-499": -1, // Don't cache client errors
           "500-599": -1,
         },
       }
@@ -102,7 +102,7 @@ app.get("/*", async (c) => {
         cacheEverything: true,
         cacheTtlByStatus: {
           "200-299": 30, // 30 seconds for testing
-          "404": -1,
+          "400-499": -1, // Don't cache client errors
           "500-599": -1,
         },
       }
@@ -148,7 +148,7 @@ app.get("/*", async (c) => {
     cacheEverything: true,
     cacheTtlByStatus: {
       "200-299": 30, // Reduced from 86400 (24h) to 30 seconds for testing
-      "404": -1,
+      "400-499": -1, // Don't cache client errors
       "500-599": -1,
     },
   };
