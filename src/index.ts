@@ -80,6 +80,9 @@ app.get("/*", async (c) => {
     newResponse.headers.set("X-Original-Key", key);
     newResponse.headers.set("X-Mime-Type", mimeType);
     
+    // Override cache-control header for testing
+    newResponse.headers.set("Cache-Control", "public, max-age=30");
+    
     return newResponse;
   }
   
@@ -112,6 +115,9 @@ app.get("/*", async (c) => {
     newResponse.headers.set("X-Video-Direct-Proxy", "true");
     newResponse.headers.set("X-Original-Key", key);
     newResponse.headers.set("X-Mime-Type", mimeType);
+    
+    // Override cache-control header for testing
+    newResponse.headers.set("Cache-Control", "public, max-age=30");
     
     return newResponse;
   }
