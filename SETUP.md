@@ -1,6 +1,7 @@
 # Cloudflare Media Transformations Setup for MP4 Proxy
 
 ## 前提条件
+
 - Cloudflareアカウントとゾーン設定済み
 - Wrangler CLIインストール済み（`npm install -g wrangler`）
 - Google Cloud Storage (GCS) バケット設定済み
@@ -20,7 +21,7 @@ Media Transformationsがstorage.googleapis.comからビデオを取得できる�
 3. 以下のいずれかを設定：
    - **Domain**: `https://storage.googleapis.com`
    - **Path**: `/cf-transform-external-s3-compat-bucket/` (オプション：特定のバケットに制限)
-   
+
    または、バケット固有のサブドメイン：
    - **Domain**: `https://cf-transform-external-s3-compat-bucket.storage.googleapis.com`
    - **Path**: 空欄
@@ -30,6 +31,7 @@ Media Transformationsがstorage.googleapis.comからビデオを取得できる�
 ## 3. GCS CORS設定（必要に応じて）
 
 `cors.json`を作成：
+
 ```json
 [
   {
@@ -42,6 +44,7 @@ Media Transformationsがstorage.googleapis.comからビデオを取得できる�
 ```
 
 適用：
+
 ```bash
 gcloud storage buckets update gs://cf-transform-external-s3-compat-bucket --cors-file=cors.json
 ```
@@ -75,13 +78,16 @@ curl -I https://your-worker.example.com/sample-video.mp4
 ## トラブルシューティング
 
 ### "Origin not allowed" エラー
+
 - Cloudflareダッシュボードで storage.googleapis.com が許可されているか確認
 - URLのフォーマットが正しいか確認（signed URLを使用）
 
 ### HEAD リクエストが失敗する
+
 - GCS HMAC認証情報が正しく設定されているか確認
 - バケットへのアクセス権限を確認
 
 ### Media Transformations が動作しない
+
 - ゾーンでMedia Transformationsが有効になっているか確認
 - `/cdn-cgi/media/` パスへのリクエストが正しく処理されているか確認

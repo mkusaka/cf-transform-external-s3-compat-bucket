@@ -14,6 +14,7 @@ A service that fetches images from private GCS buckets and automatically resizes
 ### Cloudflare Image Resizing Requirements
 
 **Image Resizing is a paid feature** that requires:
+
 1. **Cloudflare Pro, Business, or Enterprise plan**
 2. **Image Resizing addon enabled** (additional cost)
 3. Image Resizing must be enabled in your Cloudflare dashboard
@@ -23,6 +24,7 @@ Without these requirements, the worker will still serve images but without forma
 ### Alternative: Polish Only
 
 If you don't have Image Resizing enabled, you can still use Polish for compression:
+
 - Polish is available on Pro plans and above
 - Polish will compress images but won't convert formats
 
@@ -123,23 +125,25 @@ A test script is provided to verify format conversion:
 ### Manual Testing
 
 1. **Check Response Headers**
+
    ```bash
    # Request AVIF format
    curl -I -H "Accept: image/avif,image/webp,image/*" \
      http://localhost:8787/test.jpg
-   
+
    # Look for these headers:
    # X-Requested-Format: avif
    # Content-Type: image/avif
    ```
 
 2. **Download and Verify Format**
+
    ```bash
    # Download with AVIF support
    curl -H "Accept: image/avif" \
      http://localhost:8787/test.jpg \
      -o test-avif.avif
-   
+
    # Check file type
    file test-avif.avif
    # Should output: "AVIF Image"
@@ -154,6 +158,7 @@ A test script is provided to verify format conversion:
 ### Debug Headers
 
 The service adds debug headers to help verify format conversion:
+
 - `X-Requested-Format`: The format requested based on Accept header
 - `X-Accept-Header`: The original Accept header from the request
 

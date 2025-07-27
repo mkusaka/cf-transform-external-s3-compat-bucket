@@ -35,28 +35,25 @@ app.get("/*", async (c) => {
   });
 
   const originUrl = `https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`;
-  
+
   // Use mime-types package to determine content type from file extension
   const mimeType = lookup(key) || "";
-  
+
   console.log("MIME type for", key, ":", mimeType);
-  
+
   // Check if it's an MP4 file based on MIME type
   const isMp4 = mimeType === "video/mp4" || mimeType === "application/mp4";
-  
+
   if (isMp4) {
     console.log("MP4 detected via mime-types, using Media Transformations");
-    
+
     // Test: Direct fetch with Authorization header instead of Media Transformations
-    const signedReq = await aws.sign(
-      new Request(originUrl, { method: "GET" }),
-      {
-        aws: { signQuery: false } // Use Authorization header
-      }
-    );
-    
+    const signedReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
+      aws: { signQuery: false }, // Use Authorization header
+    });
+
     console.log("Direct MP4 fetch with Authorization header");
-    
+
     // Direct fetch from origin with cache settings
     const transformResponse = await fetch(signedReq, {
       cf: {
@@ -67,30 +64,27 @@ app.get("/*", async (c) => {
           "400-499": -1, // Don't cache client errors
           "500-599": -1,
         },
-      }
+      },
     });
-    
+
     const newResponse = new Response(transformResponse.body, transformResponse);
     newResponse.headers.set("X-Media-Transform", "mp4-proxy");
     newResponse.headers.set("X-Original-Key", key);
     newResponse.headers.set("X-Mime-Type", mimeType);
-    
+
     return newResponse;
   }
-  
+
   // Check if it's another video type that shouldn't go through image processing
   const isVideo = mimeType.startsWith("video/");
-  
+
   if (isVideo) {
     console.log("Non-MP4 video file detected, direct proxy without transformations");
-    
-    const signedVideoReq = await aws.sign(
-      new Request(originUrl, { method: "GET" }),
-      {
-        aws: { signQuery: true }
-      }
-    );
-    
+
+    const signedVideoReq = await aws.sign(new Request(originUrl, { method: "GET" }), {
+      aws: { signQuery: true },
+    });
+
     const videoResponse = await fetch(signedVideoReq, {
       cf: {
         cacheTtl: 30, // 30 seconds for testing
@@ -100,14 +94,14 @@ app.get("/*", async (c) => {
           "400-499": -1, // Don't cache client errors
           "500-599": -1,
         },
-      }
+      },
     });
-    
+
     const newResponse = new Response(videoResponse.body, videoResponse);
     newResponse.headers.set("X-Video-Direct-Proxy", "true");
     newResponse.headers.set("X-Original-Key", key);
     newResponse.headers.set("X-Mime-Type", mimeType);
-    
+
     return newResponse;
   }
 
@@ -118,7 +112,7 @@ app.get("/*", async (c) => {
       method: "GET",
     }),
     {
-      aws: { signQuery: false } // Use Authorization header instead of query parameters
+      aws: { signQuery: false }, // Use Authorization header instead of query parameters
     }
   );
 
@@ -137,7 +131,7 @@ app.get("/*", async (c) => {
     image: {
       format,
       quality: 85,
-      "origin-auth": "share-publicly" // Forward Authorization headers to origin
+      "origin-auth": "share-publicly", // Forward Authorization headers to origin
     },
     cacheTtl: 30, // Reduced from 86400 (24h) to 30 seconds for testing
     cacheEverything: true,
@@ -156,16 +150,19 @@ app.get("/*", async (c) => {
 
   // (5) Pass signed request through transformation pipeline and return
   const response = await fetch(signedReq, { cf: cfOptions });
-  
+
   // Clone response to add debug headers
   const newResponse = new Response(response.body, response);
-  
+
   // Add debug headers
   newResponse.headers.set("X-Requested-Format", format || "original");
   newResponse.headers.set("X-Accept-Header", accept);
-  newResponse.headers.set("X-Original-Content-Type", response.headers.get("Content-Type") || "unknown");
+  newResponse.headers.set(
+    "X-Original-Content-Type",
+    response.headers.get("Content-Type") || "unknown"
+  );
   newResponse.headers.set("X-CF-Ray", response.headers.get("CF-RAY") || "unknown");
-  
+
   // Check if Image Resizing worked
   const contentType = response.headers.get("Content-Type") || "";
   if (format === "avif" && !contentType.includes("avif")) {
@@ -175,7 +172,7 @@ app.get("/*", async (c) => {
   } else if (format) {
     newResponse.headers.set("X-Image-Resizing-Status", "success");
   }
-  
+
   return newResponse;
 });
 
