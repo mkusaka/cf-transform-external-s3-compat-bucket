@@ -25,82 +25,84 @@ app.get("/*", async (c) => {
     return c.text("Not Found", 404);
   }
 
-  // Check if this is a video file that should be handled by Media Transformations
-  if (/\.(mp4|webm|mov|avi|mkv)$/i.test(key)) {
-    const url = new URL(c.req.url);
-    console.log("Video request for key:", key);
-
-    // Generate signed URL with query parameters for video
-    const aws = new AwsClient({
-      accessKeyId: c.env.GCS_HMAC_ACCESS_KEY_ID,
-      secretAccessKey: c.env.GCS_HMAC_SECRET_ACCESS_KEY,
-      service: "s3",
-      region: "auto",
-    });
-
-    const originUrl = `https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`;
-    const signedReq = await aws.sign(
-      new Request(originUrl, { method: "GET" }),
-      {
-        aws: { signQuery: true } // Use query parameters for Media Transformations
-      }
-    );
-
-    // Media Transform options - try simpler options first
-    const mediaOptions = [
-      "mode=video"
-    ];
-
-    // For now, just proxy the video directly without transformation
-    // TODO: Enable Media Transformations after adding storage.googleapis.com to allowed origins
-    console.log("Video request - direct proxy (Media Transformations requires allowed origin setup)");
-    
-    try {
-      const response = await fetch(signedReq, {
-        cf: {
-          cacheTtl: 3600, // 1 hour for videos
-          cacheEverything: true,
-          cacheTtlByStatus: {
-            "200-299": 3600,
-            "404": -1,
-            "500-599": -1,
-          },
-        }
-      });
-
-      // Add debug headers
-      const newResponse = new Response(response.body, response);
-      newResponse.headers.set("X-Media-Transform", "video");
-      newResponse.headers.set("X-Original-Key", key);
-      newResponse.headers.set("X-Transform-Options", mediaOptions.join(","));
-      newResponse.headers.set("X-Video-Proxy", "direct");
-      newResponse.headers.set("X-Video-Status", response.status.toString());
-      
-      // If the video fetch failed, add debug info
-      if (!response.ok) {
-        console.error("Video fetch error:", response.status);
-      }
-
-      return newResponse;
-    } catch (error) {
-      console.error("Media Transform Exception:", error);
-      return new Response("Media transformation failed", { 
-        status: 500,
-        headers: {
-          "X-Error": error.message || "Unknown error",
-          "X-Original-Key": key
-        }
-      });
-    }
-  }
-
-  // (2) Generate signed request with aws4fetch
+  // (2) Generate signed request to check content type
   const aws = new AwsClient({
     accessKeyId: c.env.GCS_HMAC_ACCESS_KEY_ID,
     secretAccessKey: c.env.GCS_HMAC_SECRET_ACCESS_KEY,
     service: "s3",
     region: "auto",
   });
+
+  const originUrl = `https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`;
+  
+  // First, check if this might be a video based on extension (for optimization)
+  const hasVideoExtension = /\.(mp4|webm|mov|avi|mkv)$/i.test(key);
+  
+  // If it has a video extension or we want to check MIME type, make a HEAD request
+  if (hasVideoExtension) {
+    const headReq = await aws.sign(
+      new Request(originUrl, { method: "HEAD" }),
+      {
+        aws: { signQuery: true }
+      }
+    );
+
+    try {
+      const headResponse = await fetch(headReq);
+      const contentType = headResponse.headers.get("Content-Type") || "";
+      
+      console.log("Content-Type for", key, ":", contentType);
+      
+      // Check if it's an MP4 file based on MIME type
+      if (contentType === "video/mp4" || contentType === "video/mpeg" || 
+          (contentType === "application/octet-stream" && key.toLowerCase().endsWith(".mp4"))) {
+        console.log("MP4 detected via MIME type, using Media Transformations");
+        
+        // Build Media Transformations URL with simple mode=video option
+        const url = new URL(c.req.url);
+        
+        // Generate signed URL for the source video
+        const signedUrlReq = await aws.sign(
+          new Request(originUrl, { method: "GET" }),
+          {
+            aws: { signQuery: true }
+          }
+        );
+        
+        // Simple Media Transformations URL with just mode=video
+        const transformUrl = `${url.origin}/cdn-cgi/media/mode=video/${signedUrlReq.url}`;
+        
+        console.log("Media Transformations URL:", transformUrl);
+        
+        // Proxy the request through Media Transformations
+        const transformResponse = await fetch(transformUrl, {
+          headers: c.req.raw.headers,
+          cf: {
+            cacheTtl: 3600, // 1 hour for videos
+            cacheEverything: true,
+            cacheTtlByStatus: {
+              "200-299": 3600,
+              "404": -1,
+              "500-599": -1,
+            },
+          }
+        });
+        
+        // Return the transformed response with debug headers
+        const newResponse = new Response(transformResponse.body, transformResponse);
+        newResponse.headers.set("X-Media-Transform", "mp4-proxy");
+        newResponse.headers.set("X-Original-Key", key);
+        newResponse.headers.set("X-Content-Type", contentType);
+        
+        return newResponse;
+      }
+    } catch (error) {
+      console.error("Error checking content type:", error);
+      // Fall through to normal processing if HEAD request fails
+    }
+  }
+
+  // (3) For non-video files, continue with image processing
 
   const signedReq = await aws.sign(
     new Request(`https://storage.googleapis.com/${c.env.GCS_BUCKET}/${key}`, {
